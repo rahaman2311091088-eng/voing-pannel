@@ -278,6 +278,12 @@
 
   <div id="adminView" class="hidden">
     <div class="card">
+      <span class="field-label label-font">Vote Share — Pie Chart</span>
+      <div style="max-width:360px; margin:12px auto 0;">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
       <span class="field-label label-font">Live Tally</span>
       <div id="resultsBox" class="loading">Loading results…</div>
     </div>
@@ -296,6 +302,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script>
 const SUPABASE_URL = "https://uuhijktekppsyfrrjzhe.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1aGlqa3Rla3Bwc3lmcnJqemhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MDU5MjksImV4cCI6MjEwMDM4MTkyOX0.xImhGGfkl_bk0P9t_7jFL8xtoRnLew8T2r5-49Gg5tY";
@@ -320,6 +327,13 @@ const voteMsgArea = document.getElementById('voteMsgArea');
 const adminMsgArea = document.getElementById('adminMsgArea');
 
 let selected = new Set();
+let pieChartInstance = null;
+
+const CANDIDATE_COLORS = [
+  '#2F5D50', '#C08A2E', '#A3402F', '#5B6C63', '#7A8B82',
+  '#1B3A32', '#D8A54B', '#8C5A45', '#4A7A6A', '#B0965A',
+  '#3E5C52', '#9C6B4E'
+];
 
 function renderCandidates(){
   candidateList.innerHTML = '';
@@ -493,6 +507,56 @@ document.getElementById('resetBtn').addEventListener('click', async () => {
   }
 });
 
+function renderPieChart(tally){
+  const ctx = document.getElementById('pieChart');
+  const labels = CANDIDATES;
+  const data = CANDIDATES.map(name => tally[name] || 0);
+  const totalVotes = data.reduce((a,b) => a+b, 0);
+
+  if(pieChartInstance){
+    pieChartInstance.data.labels = labels;
+    pieChartInstance.data.datasets[0].data = data;
+    pieChartInstance.update();
+    return;
+  }
+
+  pieChartInstance = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: CANDIDATE_COLORS,
+        borderColor: '#FFFFFF',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { family: "'Courier New', monospace", size: 10 },
+            color: '#1F2E2A',
+            boxWidth: 12,
+            padding: 8
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context){
+              const val = context.parsed;
+              const pct = totalVotes > 0 ? ((val/totalVotes)*100).toFixed(1) : '0.0';
+              return `${context.label}: ${val} vote${val===1?'':'s'} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 async function loadResults(){
   const resultsBox = document.getElementById('resultsBox');
   const logBox = document.getElementById('logBox');
@@ -518,6 +582,8 @@ async function loadResults(){
 
     const maxVotes = Math.max(1, ...Object.values(tally));
     const sorted = Object.entries(tally).sort((a,b) => b[1]-a[1]);
+
+    renderPieChart(tally);
 
     resultsBox.innerHTML = `
       <div class="hint" style="margin-bottom:10px;">${(records||[]).length} member${(records||[]).length===1?'':'s'} voted</div>
